@@ -39,7 +39,7 @@ class BetterScrapper:
 
   def request(self, url, cookies, headers):
     res = requests.get(url, cookies=cookies, headers=headers)
-    return sp(res.content, "html.parser")
+    return res.content
   
   def request_js(self, url, cookies, headers):
     print("The javascript version is not currently handling cookies and headers correctly.")
@@ -68,7 +68,7 @@ class BetterScrapper:
     driver.get(url)
 
     #TODO: add wait time for page to load
-    return sp(driver.page_source, "html.parser")
+    return driver.page_source
 
   def visit(self, url, js=False, cookies=False, headers=False):
     #if we got cookies or/and headers ignore the class ones
@@ -76,34 +76,42 @@ class BetterScrapper:
     dheaders = headers if headers else self.headers
 
     #make the requests using requests or selenium based on js flag
-    soup = self.request(url, dcookies, dheaders) if not js else self.request_js(url, dcookies, dheaders)
+    source = self.request(url, dcookies, dheaders) if not js else self.request_js(url, dcookies, dheaders)
+    soup = sp(source, "html.parser")
     dom = etree.HTML(str(soup)) 
+
+    a = soup.find("div", attrs={"class": "product-tile"})
 
     #match rules
     for rule in self.rules:
       elements = dom.xpath(rule["match"])
       for element in elements:
-        #convert element back to beautifulsoup object
+        #convert element back to beautifulsoup object, this make it lose its attrs
         bs_element = sp(etree.tostring(element), "html.parser")
+        #get the attrs back
+        bs_element.attrs = element.attrib
+        #call the rule function
         rule["func"](self, bs_element)
 
     return soup
 
 
 def product_process(scrapper, element):
-  title = element.find(attrs={"class": "product-thumbnail__description"}).text
-  print(title)
-
+  if not element:
+    return
+  
+  print(element["data-product-tile-impression"])
+  exit()
 
 if __name__ == "__main__":
   scrapper = BetterScrapper()
 
   scrapper.set_rule({
-    "match": "//article[contains(@class, 'product-thumbnail')]",
+    "match": "//div[contains(@class, 'product-tile')]",
     "func": product_process
   })
 
-  scrapper.visit("https://www.auchan.fr/boucherie-volaille-poissonnerie/boucherie/ca-n0201?page=1")
+  scrapper.visit("https://www.continente.pt/mercearia/?start=0&srule=FOOD_Mercearia&pmin=0.01")
 
 
 
